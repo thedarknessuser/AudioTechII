@@ -105,7 +105,7 @@ def params_CLI():
             print("4 - Triangle")
         
         # MODULATION
-        print("\Use modulation synthesis?:")
+        print("\nUse modulation synthesis?:")
         print("1 - FM")
         print("2 - AM")
         print("3 - None")
