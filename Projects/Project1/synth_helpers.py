@@ -2,7 +2,6 @@ import numpy as np
 from scipy.io.wavfile import read, write
 from scipy import signal
 
-
 # TODO: Replace the code below with your implementation of the waveforms.
 # Hint: You may want to write more helper functions to create the waveforms
 # Note: How will you handle aliasing?
@@ -20,21 +19,37 @@ def gen_wave(type, freq, dur, fs=44100, amp=1, phi=0):
     wave (numpy array) = The generated waveform
     """
   
-    wave = np.array([])
+    n = np.arange(0,dur,1/fs)
+    wave = np.zeros(len(n))
 
     if type == 'sine':
         # create sinusoid
-        wave = amp * np.sin(2*np.pi*freq*np.arange(0,dur,1/fs) + phi)
+        wave = np.sin(2*np.pi * freq * n + phi)
     elif type == 'saw':
-        # create saw
-        wave = np.array([])
+        for i in range(0, 100, 1):
+            ithHarmonic = 1 + i
+            ithFreq = freq * ithHarmonic
+            if abs(ithFreq*2) >= fs:
+                break
+            ithWave = np.sin(2*np.pi * ithFreq * n + phi) * (1/ithHarmonic)
+            wave += ithWave
     elif type == 'square':
-        # create square
-        wave = np.array([])
+        for i in range(0, 100, 1):
+            ithHarmonic = 1 + 2*i
+            ithFreq = freq * ithHarmonic
+            if abs(ithFreq*2) >= fs:
+                break
+            ithWave = np.sin(2*np.pi * ithFreq * n + phi) * (1/ithHarmonic)
+            wave += ithWave
     elif type == 'triangle':
-        # create triangle
-        wave = np.array([])
-    return wave
+        for i in range(0, 100, 1):
+            ithHarmonic = 1 + 2*i
+            ithFreq = freq * ithHarmonic
+            if abs(ithFreq*2) >= fs:
+                break
+            ithWave = np.sin(2*np.pi * ithFreq * n + phi) * (1/(ithHarmonic**2))
+            wave += ithWave
+    return amp * wave
     
 
 # TODO: Replace the code below with your implementation of an ADSR
@@ -53,8 +68,51 @@ def adsr(data, attack, decay, sustain, release, fs=44100):
     The function should return a numpy array
     sig (numpy array) = the modified, enveloped signal
     """
-    sig = data
-    return sig
+    try: 
+        attack + decay + sustain + release 
+    except: 
+        raise ValueError("ADSR parameters must be numeric.") 
+
+    if sustain < 0 or sustain > 1: 
+        raise ValueError("Sustain level must be between 0 and 1.") 
+
+    N = len(data) 
+    if N == 0: 
+        return data 
+
+    # scale if A + D + R exceed 100% 
+    total = attack + decay + release 
+    if total > 100: 
+        scale = 100.0 / total 
+        attack *= scale 
+        decay *= scale 
+        release *= scale 
+
+    # convert percent → sample counts 
+    a_n = int((attack/100.0) * N) 
+    d_n = int((decay/100.0) * N) 
+    r_n = int((release/100.0) * N) 
+    s_n = N - (a_n + d_n + r_n) 
+
+    # fix negative sustain length 
+    if s_n < 0: 
+        s_n = 0 
+        r_n = max(0, r_n) 
+        d_n = max(0, d_n) 
+        a_n = max(0, a_n) 
+
+    # build envelope 
+    a = np.linspace(0, 1, a_n, endpoint=False) 
+    d = np.linspace(1, sustain, d_n, endpoint=False) 
+    s = np.full(s_n, sustain) 
+    r = np.linspace(sustain, 0, r_n) 
+
+    env = np.concatenate((a, d, s, r)) 
+
+    # fix rounding mismatch 
+    if len(env) != N: 
+        env = env[:N] 
+    return data * env
 
 
 # TODO: Replace the code below with your implementation of a FM synthesis
@@ -75,8 +133,59 @@ def fm_synth(carrier_type, carrier_freq, mod_index, mod_ratio, dur, fs=44100, am
     The function should return a numpy array
     sig (numpy array) = frequency modulated signal
     """
-    sig = gen_wave(carrier_type, carrier_freq, dur, fs=fs)
-    return sig
+
+    try: 
+        carrier_freq + mod_index + mod_ratio + dur + fs + amp 
+    except: 
+        raise ValueError("carrier_freq, mod_index, mod_ratio, dur, fs, and amp must be numeric.") 
+
+    if fs <= 0 or dur <= 0 or carrier_freq < 0: 
+        return np.array([]) 
+
+    # sanitize strings 
+    try: 
+        carrier = carrier_type.lower() 
+    except:
+        carrier = 'sine' 
+    try: 
+        modulator = modulator_type.lower() 
+    except:
+        modulator = 'sine' 
+
+    n = np.arange(0,dur,1/fs)
+    wave = np.zeros(len(n))
+    mod_wave = gen_wave(modulator_type, carrier_freq * mod_ratio, dur, fs)
+
+    if carrier_type == 'sine':
+        # create sinusoid
+        wave = np.sin(2*np.pi * carrier_freq * n + (mod_index * mod_wave))
+    elif carrier_type == 'saw':
+        for i in range(0, 100, 1):
+            ithHarmonic = 1 + i
+            ithFreq = carrier_freq * ithHarmonic
+            if abs(ithFreq*2) >= fs:
+                break
+            ithWave = np.sin(2*np.pi * ithFreq * n + (mod_index * mod_wave)) * (1/ithHarmonic)
+            wave += ithWave
+    elif carrier_type == 'square':
+        for i in range(0, 100, 1):
+            ithHarmonic = 1 + 2*i
+            ithFreq = carrier_freq * ithHarmonic
+            if abs(ithFreq*2) >= fs:
+                break
+            ithWave = np.sin(2*np.pi * ithFreq * n + (mod_index * mod_wave)) * (1/ithHarmonic)
+            wave += ithWave
+    elif carrier_type == 'triangle':
+        for i in range(0, 100, 1):
+            ithHarmonic = 1 + 2*i
+            ithFreq = carrier_freq * ithHarmonic
+            if abs(ithFreq*2) >= fs:
+                break
+            ithWave = np.sin(2*np.pi * ithFreq * n + (mod_index * mod_wave)) * (1/(ithHarmonic**2))
+            wave += ithWave
+    return amp * wave
+
+    
 
 # TODO: Replace the code below with your implementation of a AM synthesis
 def am_synth(carrier_type, carrier_freq, mod_depth, mod_ratio, dur, fs=44100, amp=1, modulator_type='sine'):
@@ -95,8 +204,46 @@ def am_synth(carrier_type, carrier_freq, mod_depth, mod_ratio, dur, fs=44100, am
     The function should return a numpy array
     sig (numpy array) = amplitude modulated signal
     """
-    sig = gen_wave(carrier_type, carrier_freq, dur, fs=fs)
-    return sig
+    #sig = gen_wave(carrier_type, carrier_freq, dur, fs=fs)
+    #return sig
+
+    try: 
+        carrier_freq + mod_depth + mod_ratio + dur + fs + amp 
+    except: 
+        raise ValueError("carrier_freq, mod_depth, mod_ratio, dur, fs, and amp must be numeric.") 
+
+    if fs <= 0 or dur <= 0 or carrier_freq < 0: 
+        return np.array([]) 
+
+    # sanitize type strings 
+    try: 
+        carrier = carrier_type.lower() 
+    except: 
+        carrier = 'sine' 
+    try: 
+        modulator = modulator_type.lower() 
+    except: 
+        modulator = 'sine' 
+
+    # clamp modulation depth to [0, 1] 
+    if mod_depth < 0: 
+        mod_depth = 0.0 
+    if mod_depth > 1: 
+        mod_depth = 1.0 
+
+    # core params
+    t = np.arange(0, dur, 1/fs)
+
+    # modulator frequency and waveform (in [-1, 1]) 
+    m = gen_wave(modulator_type, carrier_freq * mod_ratio, dur, fs)
+
+    # amplitude envelope in [1 - mod_depth, 1] 
+    #env = (1.0 - mod_depth) + mod_depth * (m + 1.0) * 0.5 
+
+    # carrier waveform 
+    c = gen_wave(carrier_type, carrier_freq, dur, fs)
+
+    return amp * c * m 
 
 
 # TODO: Complete at least one of the functions below: filter, reverb, delay.
@@ -129,8 +276,27 @@ def reverb(data, ir, dry_wet=0.5):
     The function should return a numpy array
     sig (numpy array) = signal with reverb
     """
-    sig = data
-    return sig
+    #sig = data
+    #return sig
+
+    (fs, ir) = read(ir) 
+    if ir.ndim > 1: 
+        ir = ir.mean(axis=1)
+    
+    if data.ndim > 1: 
+        data = data.mean(axis=1)
+    
+    print("reached convolve")
+    wet_sig = np.convolve(data, ir, mode='full') 
+    pad_length = len(wet_sig) - len(data) 
+    dry_padded = np.concatenate([data, np.zeros(pad_length)]) 
+    if np.max(np.abs(wet_sig)) > 0: #normalize 
+        wet_norm = wet_sig / np.max(np.abs(wet_sig)) 
+    else: 
+        wet_norm = wet_sig 
+    output = (dry_padded * (1.0 - dry_wet)) + (wet_norm * dry_wet) 
+
+    return output
 
 def delay(data, delay_time, dry_wet=0.5, fs=44100):
     """

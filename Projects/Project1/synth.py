@@ -4,7 +4,6 @@ from scipy import signal
 import pretty_midi
 import synth_helpers
 
-
 def parse_midi():
     """
     MIDI PARSER
@@ -55,28 +54,28 @@ def params_CLI():
     synth_params['fs'] = int(input("Output sample rate (max 48000): "))
 
     print("\nChoose a playback mode:")
-    print("1 - Preset 1: MyPresetName")
-    print("2 - Preset 2: MyPresetName")
+    print("1 - Preset 1: Sitar")
+    print("2 - Preset 2: Cold Bells")
     print("3 - Custom sound")
     mode = int(input("> "))
 
     if mode == 1:
         # TODO: UPDATE WITH YOUR PRESET PARAMS
 
-        synth_params['osc_type'] = 'sine'
+        synth_params['osc_type'] = 'saw'
         synth_params['modulation'] = 'none'
         synth_params['mod_ratio'] = 0
         synth_params['mod_index'] = 0
-        synth_params['reverb'] = False
-        synth_params['adsr'] = (60, 20, 0.8, 20)
+        synth_params['reverb'] = True
+        synth_params['adsr'] = (1, 49, 0.2, 50)
     
     elif mode == 2:
         # TODO: UPDATE WITH YOUR PRESET PARAMS
 
         synth_params['osc_type'] = 'sine'
-        synth_params['modulation'] = 'none'
-        synth_params['mod_ratio'] = 0
-        synth_params['mod_index'] = 0
+        synth_params['modulation'] = 'fm'
+        synth_params['mod_ratio'] = 5
+        synth_params['mod_index'] = 2
         synth_params['reverb'] = False
         synth_params['adsr'] = (50, 10, 0.8, 10)
 
@@ -154,8 +153,14 @@ def params_CLI():
 def gen_note(freq, dur, amp, synth_params):
     fs = synth_params['fs']
     osc_type = synth_params['osc_type']
-    note = synth_helpers.gen_wave(osc_type, freq, dur, fs, amp)
-    return note
+    mod_type = synth_params['modulation']
+    if mod_type == 'none':
+        note = synth_helpers.gen_wave(osc_type, freq, dur, fs, amp)
+    elif mod_type == 'fm':
+        note = synth_helpers.fm_synth(osc_type, freq, synth_params['mod_index'], synth_params['mod_ratio'], dur, fs, amp)
+    elif mod_type == 'am':
+        note = synth_helpers.am_synth(osc_type, freq, synth_params['mod_index'], synth_params['mod_ratio'], dur, fs, amp)
+    return synth_helpers.adsr(note, synth_params['adsr'][0], synth_params['adsr'][1], synth_params['adsr'][2], synth_params['adsr'][3], fs)
 
 
 # TODO: Update this function. 
@@ -175,7 +180,7 @@ def synth(note_list, synth_params):
    
     # TODO: Update this. This is just an example for reading into the synth_params dictionary
     if synth_params['reverb']: # remember reverb will be true/false in my example
-        song = synth_helpers.reverb(song, 'file_path')
+        song = synth_helpers.reverb(song, 'audio/IR_medium.wav') 
 
     return song
 
