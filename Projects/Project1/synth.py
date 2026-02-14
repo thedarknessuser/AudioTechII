@@ -192,10 +192,10 @@ def create_file(audio_data, fs):
 
 def main():
     # MIDI Input and parsing
-    note_list = parse_midi()
+    note_list = parse_midi() # Hard coded path to midi file in folder.
 
     # Synth parameter setting
-    synth_params = params_CLI()
+    synth_params = params_CLI() # Gets parameters based on user terminal input.
 
     # Synthesis
     audio_data = synth(note_list, synth_params)
