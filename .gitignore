@@ -16,4 +16,6 @@ test.py
 utils.txt
 .github/workflows
 **/.DS_Store
-/AudioTechIIProject2
+**/Builds
+**/JuceLibraryCode
+
