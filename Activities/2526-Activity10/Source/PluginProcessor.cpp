@@ -96,6 +96,7 @@ void _2526Activity10AudioProcessor::prepareToPlay (double sampleRate, int numSam
     // You need to initialize your variables here!
     samplingRate = sampleRate;
     samplesPerBlock = numSamplesPerBlock;
+<<<<<<< HEAD
 
     freq = 440;
     amp = 1;
@@ -105,6 +106,17 @@ void _2526Activity10AudioProcessor::prepareToPlay (double sampleRate, int numSam
     int envSamples = samplingRate * int(envSec);
 
     int envTracker = 0;
+=======
+    
+    freq = 440;
+    amp = 1;
+    phase = 0;
+    
+    // envelope length in samples
+    envSamples = samplingRate * int(envSec);
+    
+    envTracker = 0;
+>>>>>>> upstream/main
 }
 
 void _2526Activity10AudioProcessor::releaseResources()
@@ -190,6 +202,24 @@ void _2526Activity10AudioProcessor::genSineWave(juce::AudioBuffer<float>& buffer
         }
     }
     
+    float phaseStart = phase;
+    for (int channel = 0; channel < buffer.getNumChannels(); ++channel) {
+        
+        auto* channelData = buffer.getWritePointer(channel);
+        phase = phaseStart;
+        
+        for (int i = 0; i < samplesPerBlock; i++) {
+            channelData[i] = amp * sinf(phase);
+            
+            phase += juce::MathConstants<float>::twoPi * freq / samplingRate;
+            
+            if (phase >= juce::MathConstants<float>::twoPi){
+                phase -= juce::MathConstants<float>::twoPi;
+            }
+            
+        }
+    }
+    
 }
 
 
@@ -198,6 +228,7 @@ void _2526Activity10AudioProcessor::applyEnvRamp(juce::AudioBuffer<float>& buffe
     // Apply an amplitude envelope to the buffer (in place)
     // Multiply each sample by an envelope value (0 → 1 → 0)
     // your code goes here!
+<<<<<<< HEAD
 
     int envStart = envTracker;
     float envVal;
@@ -207,10 +238,24 @@ void _2526Activity10AudioProcessor::applyEnvRamp(juce::AudioBuffer<float>& buffe
         auto* channelData = buffer.getWritePointer(channel);
         envTracker = envStart;
         for (int i = 0; i < samplesPerBlock; ++i) {
+=======
+    
+    int envStart = envTracker;
+    float envVal;
+    float halfEnvLen = float(envSamples) / 2;
+    
+    for (int channel = 0; channel < buffer.getNumChannels(); ++channel) {
+        auto* channelData = buffer.getWritePointer(channel);
+        envTracker = envStart;
+        
+        for (int i = 0; i < samplesPerBlock; i++) {
+            
+>>>>>>> upstream/main
             if (envTracker < halfEnvLen) {
                 envVal = envTracker / halfEnvLen;
             }
             else {
+<<<<<<< HEAD
                 envVal = 1.0f - (envTracker - halfEnvLen) / halfEnvLen;
             }
 
@@ -224,6 +269,22 @@ void _2526Activity10AudioProcessor::applyEnvRamp(juce::AudioBuffer<float>& buffe
         }
 
     }
+=======
+                envVal = 1 - (envTracker - halfEnvLen) / halfEnvLen;
+            }
+            
+            channelData[i] *= envVal;
+            
+            envTracker++;
+            
+            if (envTracker >= envSamples) {
+                envTracker = 0;
+            }
+        }
+        
+    }
+    
+>>>>>>> upstream/main
 }
 
 //==============================================================================
