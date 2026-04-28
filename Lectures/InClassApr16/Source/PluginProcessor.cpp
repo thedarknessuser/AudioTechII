@@ -10,7 +10,7 @@
 #include "PluginEditor.h"
 
 //==============================================================================
-InClassapr14AudioProcessor::InClassapr14AudioProcessor()
+InClassApr16AudioProcessor::InClassApr16AudioProcessor()
 #ifndef JucePlugin_PreferredChannelConfigurations
      : AudioProcessor (BusesProperties()
                      #if ! JucePlugin_IsMidiEffect
@@ -19,22 +19,30 @@ InClassapr14AudioProcessor::InClassapr14AudioProcessor()
                       #endif
                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
                      #endif
-                       )
+                       ),
 #endif
+apvts(*this, nullptr, "Parameters", createParams())
 {
 }
 
-InClassapr14AudioProcessor::~InClassapr14AudioProcessor()
+InClassApr16AudioProcessor::~InClassApr16AudioProcessor()
 {
+}
+
+juce::AudioProcessorValueTreeState::ParameterLayout InClassApr16AudioProcessor::createParams()
+{
+    return {
+        std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"delay", 1}, "Delay length", 0.0, 5, 0.25)
+    };
 }
 
 //==============================================================================
-const juce::String InClassapr14AudioProcessor::getName() const
+const juce::String InClassApr16AudioProcessor::getName() const
 {
     return JucePlugin_Name;
 }
 
-bool InClassapr14AudioProcessor::acceptsMidi() const
+bool InClassApr16AudioProcessor::acceptsMidi() const
 {
    #if JucePlugin_WantsMidiInput
     return true;
@@ -43,7 +51,7 @@ bool InClassapr14AudioProcessor::acceptsMidi() const
    #endif
 }
 
-bool InClassapr14AudioProcessor::producesMidi() const
+bool InClassApr16AudioProcessor::producesMidi() const
 {
    #if JucePlugin_ProducesMidiOutput
     return true;
@@ -52,7 +60,7 @@ bool InClassapr14AudioProcessor::producesMidi() const
    #endif
 }
 
-bool InClassapr14AudioProcessor::isMidiEffect() const
+bool InClassApr16AudioProcessor::isMidiEffect() const
 {
    #if JucePlugin_IsMidiEffect
     return true;
@@ -61,66 +69,61 @@ bool InClassapr14AudioProcessor::isMidiEffect() const
    #endif
 }
 
-double InClassapr14AudioProcessor::getTailLengthSeconds() const
+double InClassApr16AudioProcessor::getTailLengthSeconds() const
 {
     return 0.0;
 }
 
-int InClassapr14AudioProcessor::getNumPrograms()
+int InClassApr16AudioProcessor::getNumPrograms()
 {
     return 1;   // NB: some hosts don't cope very well if you tell them there are 0 programs,
                 // so this should be at least 1, even if you're not really implementing programs.
 }
 
-int InClassapr14AudioProcessor::getCurrentProgram()
+int InClassApr16AudioProcessor::getCurrentProgram()
 {
     return 0;
 }
 
-void InClassapr14AudioProcessor::setCurrentProgram (int index)
+void InClassApr16AudioProcessor::setCurrentProgram (int index)
 {
 }
 
-const juce::String InClassapr14AudioProcessor::getProgramName (int index)
+const juce::String InClassApr16AudioProcessor::getProgramName (int index)
 {
     return {};
 }
 
-void InClassapr14AudioProcessor::changeProgramName (int index, const juce::String& newName)
+void InClassApr16AudioProcessor::changeProgramName (int index, const juce::String& newName)
 {
 }
 
 //==============================================================================
-void InClassapr14AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
+void InClassApr16AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     // Use this method as the place to do any pre-playback
     // initialisation that you need..
-    
+
     samplingRate = sampleRate;
     bufferSize = samplesPerBlock;
     
-    lastSample = 0;
-    
-    // max 1 second delay
-    delayBufferSize = (int) samplingRate;
+    delayBufferSize = (int) (sampleRate * maxDelayLength);
     
     int numChannels = getTotalNumOutputChannels();
     delayBuffer.setSize(numChannels, delayBufferSize);
     delayBuffer.clear();
     
-    // 0.5 second delay
-    delayInSamples = (int) (0.5 * samplingRate);
     writeTail = 0;
 }
 
-void InClassapr14AudioProcessor::releaseResources()
+void InClassApr16AudioProcessor::releaseResources()
 {
     // When playback stops, you can use this as an opportunity to free up any
     // spare memory, etc.
 }
 
 #ifndef JucePlugin_PreferredChannelConfigurations
-bool InClassapr14AudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
+bool InClassApr16AudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
   #if JucePlugin_IsMidiEffect
     juce::ignoreUnused (layouts);
@@ -145,7 +148,7 @@ bool InClassapr14AudioProcessor::isBusesLayoutSupported (const BusesLayout& layo
 }
 #endif
 
-void InClassapr14AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
+void InClassApr16AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     juce::ScopedNoDenormals noDenormals;
     auto totalNumInputChannels  = getTotalNumInputChannels();
@@ -160,76 +163,38 @@ void InClassapr14AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
+    // This is the place where you'd normally do the guts of your plugin's
+    // audio processing...
+    // Make sure to reset the state if your inner loop is processing
+    // the samples and the outer loop is handling the channels.
+    // Alternatively, you can process the samples with the channels
+    // interleaved by keeping the same state.
     
-    delay3(buffer);
+    delay(buffer);
+    
 }
 
-
-void InClassapr14AudioProcessor::delay1(juce::AudioBuffer<float> &buffer)
-{
-    auto totalNumInputChannels = getTotalNumInputChannels();
-    for (int channel = 0; channel < totalNumInputChannels; ++channel)
-    {
-        auto* channelData = buffer.getWritePointer (channel);
-        
-        for (int i = 0; i < bufferSize; ++i)
-        {
-            float input = channelData[i];
-            float output = lastSample + input;
-            
-            lastSample = input;
-            channelData[i] = output;
-        }
-    }
-}
-
-void InClassapr14AudioProcessor::delay2(juce::AudioBuffer<float> &buffer)
-{
-    auto totalNumInputChannels = getTotalNumInputChannels();
-    for (int channel = 0; channel < totalNumInputChannels; ++channel)
-    {
-        auto* channelData = buffer.getWritePointer (channel);
-        auto* delayData = delayBuffer.getWritePointer(channel);
-        
-        for (int i = 0; i < bufferSize; ++i)
-        {
-            float input = channelData[i];
-            
-            // last sample
-            float delayed = delayData[delayBufferSize - 1];
-            
-            float output = delayed + input;
-            
-            channelData[i] = output;
-            
-            //shift old contents down
-            for (int j = delayBufferSize - 1; j > 0; --j)
-            {
-                delayData[j] = delayData[j - 1];
-            }
-            
-            //"insert" new input value
-            delayData[0] = input;
-        }
-    }
-}
-
-void InClassapr14AudioProcessor::delay3(juce::AudioBuffer<float> &buffer)
+void InClassApr16AudioProcessor::delay(juce::AudioBuffer<float> &buffer)
 {
     int numChannels = buffer.getNumChannels();
-    int numSamples = buffer.getNumSamples();
+    
+    auto* delayParam = apvts.getRawParameterValue("delay");
+    auto delayLengthSec = delayParam->load();
+    
+    int delayInSamples = (int) (delayLengthSec * samplingRate);
     
     for (int channel = 0; channel < numChannels; ++channel)
     {
         float* channelData = buffer.getWritePointer(channel);
-        float* delayData = buffer.getWritePointer(channel);
+        float* delayData = delayBuffer.getWritePointer(channel);
         
-        for (int i = 0; i < numSamples; ++i)
+        for (int i = 0; i < bufferSize; ++i)
         {
             int writeIndex = (writeTail + i) % delayBufferSize;
             int readIndex = (writeIndex - delayInSamples + delayBufferSize) % delayBufferSize;
             
             float input = channelData[i];
+            
             float delayed = delayData[readIndex];
             
             delayData[writeIndex] = input;
@@ -237,29 +202,31 @@ void InClassapr14AudioProcessor::delay3(juce::AudioBuffer<float> &buffer)
             channelData[i] = delayed;
         }
     }
-    writeTail = (writeTail + numSamples) % delayBufferSize;
+    
+    writeTail = (writeTail + bufferSize) % delayBufferSize;
+    
 }
 
 //==============================================================================
-bool InClassapr14AudioProcessor::hasEditor() const
+bool InClassApr16AudioProcessor::hasEditor() const
 {
-    return true; // (change this to false if you choose to not supply an editor)
+    return false; // (change this to false if you choose to not supply an editor)
 }
 
-juce::AudioProcessorEditor* InClassapr14AudioProcessor::createEditor()
+juce::AudioProcessorEditor* InClassApr16AudioProcessor::createEditor()
 {
-    return new InClassapr14AudioProcessorEditor (*this);
+    return new InClassApr16AudioProcessorEditor (*this);
 }
 
 //==============================================================================
-void InClassapr14AudioProcessor::getStateInformation (juce::MemoryBlock& destData)
+void InClassApr16AudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     // You should use this method to store your parameters in the memory block.
     // You could do that either as raw data, or use the XML or ValueTree classes
     // as intermediaries to make it easy to save and load complex data.
 }
 
-void InClassapr14AudioProcessor::setStateInformation (const void* data, int sizeInBytes)
+void InClassApr16AudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
     // You should use this method to restore your parameters from this memory block,
     // whose contents will have been created by the getStateInformation() call.
@@ -269,5 +236,5 @@ void InClassapr14AudioProcessor::setStateInformation (const void* data, int size
 // This creates new instances of the plugin..
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
-    return new InClassapr14AudioProcessor();
+    return new InClassApr16AudioProcessor();
 }

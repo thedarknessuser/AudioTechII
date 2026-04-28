@@ -10,7 +10,7 @@
 #include "PluginEditor.h"
 
 //==============================================================================
-InClassapr14AudioProcessor::InClassapr14AudioProcessor()
+AudioTech2Lecture9AudioProcessor::AudioTech2Lecture9AudioProcessor()
 #ifndef JucePlugin_PreferredChannelConfigurations
      : AudioProcessor (BusesProperties()
                      #if ! JucePlugin_IsMidiEffect
@@ -19,22 +19,35 @@ InClassapr14AudioProcessor::InClassapr14AudioProcessor()
                       #endif
                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
                      #endif
-                       )
+                       ),
 #endif
+    apvts(*this, nullptr, "Parameters", createParams())
 {
 }
 
-InClassapr14AudioProcessor::~InClassapr14AudioProcessor()
+AudioTech2Lecture9AudioProcessor::~AudioTech2Lecture9AudioProcessor()
 {
+}
+
+juce::AudioProcessorValueTreeState::ParameterLayout AudioTech2Lecture9AudioProcessor::createParams()
+{
+    return {
+        std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"delay", 1}, "Delay length", 0.0, 2, 0.25),
+        std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"mix", 1}, "Mix", 0.0f, 1.0f, 0.5f),
+        std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"feedback", 1}, "Feedback", 0.0f, 0.95f, 0.3f),
+        std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"rate", 1}, "Rate", 0.05f, 5.0f, 0.5f),
+        std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"depth", 1}, "Depth", 0.0f, 0.5f, 0.1f), // seconds
+        std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"modOn", 1}, "Modulation On", true)
+    };
 }
 
 //==============================================================================
-const juce::String InClassapr14AudioProcessor::getName() const
+const juce::String AudioTech2Lecture9AudioProcessor::getName() const
 {
     return JucePlugin_Name;
 }
 
-bool InClassapr14AudioProcessor::acceptsMidi() const
+bool AudioTech2Lecture9AudioProcessor::acceptsMidi() const
 {
    #if JucePlugin_WantsMidiInput
     return true;
@@ -43,7 +56,7 @@ bool InClassapr14AudioProcessor::acceptsMidi() const
    #endif
 }
 
-bool InClassapr14AudioProcessor::producesMidi() const
+bool AudioTech2Lecture9AudioProcessor::producesMidi() const
 {
    #if JucePlugin_ProducesMidiOutput
     return true;
@@ -52,7 +65,7 @@ bool InClassapr14AudioProcessor::producesMidi() const
    #endif
 }
 
-bool InClassapr14AudioProcessor::isMidiEffect() const
+bool AudioTech2Lecture9AudioProcessor::isMidiEffect() const
 {
    #if JucePlugin_IsMidiEffect
     return true;
@@ -61,66 +74,59 @@ bool InClassapr14AudioProcessor::isMidiEffect() const
    #endif
 }
 
-double InClassapr14AudioProcessor::getTailLengthSeconds() const
+double AudioTech2Lecture9AudioProcessor::getTailLengthSeconds() const
 {
     return 0.0;
 }
 
-int InClassapr14AudioProcessor::getNumPrograms()
+int AudioTech2Lecture9AudioProcessor::getNumPrograms()
 {
     return 1;   // NB: some hosts don't cope very well if you tell them there are 0 programs,
                 // so this should be at least 1, even if you're not really implementing programs.
 }
 
-int InClassapr14AudioProcessor::getCurrentProgram()
+int AudioTech2Lecture9AudioProcessor::getCurrentProgram()
 {
     return 0;
 }
 
-void InClassapr14AudioProcessor::setCurrentProgram (int index)
+void AudioTech2Lecture9AudioProcessor::setCurrentProgram (int index)
 {
 }
 
-const juce::String InClassapr14AudioProcessor::getProgramName (int index)
+const juce::String AudioTech2Lecture9AudioProcessor::getProgramName (int index)
 {
     return {};
 }
 
-void InClassapr14AudioProcessor::changeProgramName (int index, const juce::String& newName)
+void AudioTech2Lecture9AudioProcessor::changeProgramName (int index, const juce::String& newName)
 {
 }
 
 //==============================================================================
-void InClassapr14AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
+void AudioTech2Lecture9AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-    // Use this method as the place to do any pre-playback
-    // initialisation that you need..
-    
+
     samplingRate = sampleRate;
+
     bufferSize = samplesPerBlock;
-    
-    lastSample = 0;
-    
-    // max 1 second delay
-    delayBufferSize = (int) samplingRate;
-    
+
+    int maxDelay = maxDelaySec * samplingRate;
+
     int numChannels = getTotalNumOutputChannels();
-    delayBuffer.setSize(numChannels, delayBufferSize);
-    delayBuffer.clear();
-    
-    // 0.5 second delay
-    delayInSamples = (int) (0.5 * samplingRate);
-    writeTail = 0;
+
+    delay.prepare(samplingRate, maxDelay, numChannels);
+
 }
 
-void InClassapr14AudioProcessor::releaseResources()
+void AudioTech2Lecture9AudioProcessor::releaseResources()
 {
     // When playback stops, you can use this as an opportunity to free up any
     // spare memory, etc.
 }
 
 #ifndef JucePlugin_PreferredChannelConfigurations
-bool InClassapr14AudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
+bool AudioTech2Lecture9AudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
   #if JucePlugin_IsMidiEffect
     juce::ignoreUnused (layouts);
@@ -145,8 +151,11 @@ bool InClassapr14AudioProcessor::isBusesLayoutSupported (const BusesLayout& layo
 }
 #endif
 
-void InClassapr14AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
+void AudioTech2Lecture9AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
+
+    DBG("process block called");
+
     juce::ScopedNoDenormals noDenormals;
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
@@ -160,106 +169,49 @@ void InClassapr14AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
-    
-    delay3(buffer);
-}
 
-
-void InClassapr14AudioProcessor::delay1(juce::AudioBuffer<float> &buffer)
-{
-    auto totalNumInputChannels = getTotalNumInputChannels();
-    for (int channel = 0; channel < totalNumInputChannels; ++channel)
-    {
-        auto* channelData = buffer.getWritePointer (channel);
-        
-        for (int i = 0; i < bufferSize; ++i)
-        {
-            float input = channelData[i];
-            float output = lastSample + input;
-            
-            lastSample = input;
-            channelData[i] = output;
-        }
-    }
-}
-
-void InClassapr14AudioProcessor::delay2(juce::AudioBuffer<float> &buffer)
-{
-    auto totalNumInputChannels = getTotalNumInputChannels();
-    for (int channel = 0; channel < totalNumInputChannels; ++channel)
-    {
-        auto* channelData = buffer.getWritePointer (channel);
-        auto* delayData = delayBuffer.getWritePointer(channel);
-        
-        for (int i = 0; i < bufferSize; ++i)
-        {
-            float input = channelData[i];
-            
-            // last sample
-            float delayed = delayData[delayBufferSize - 1];
-            
-            float output = delayed + input;
-            
-            channelData[i] = output;
-            
-            //shift old contents down
-            for (int j = delayBufferSize - 1; j > 0; --j)
-            {
-                delayData[j] = delayData[j - 1];
-            }
-            
-            //"insert" new input value
-            delayData[0] = input;
-        }
-    }
-}
-
-void InClassapr14AudioProcessor::delay3(juce::AudioBuffer<float> &buffer)
-{
-    int numChannels = buffer.getNumChannels();
     int numSamples = buffer.getNumSamples();
-    
-    for (int channel = 0; channel < numChannels; ++channel)
+
+    // get params
+
+    auto* delayParam = apvts.getRawParameterValue("delay");
+    auto delayLengthSec = delayParam->load();
+
+    delay.setDelayTime(delayLengthSec);
+
+    delay.setWetMix(0.5);
+
+    for (int channel = 0; channel < totalNumInputChannels; ++channel)
     {
-        float* channelData = buffer.getWritePointer(channel);
-        float* delayData = buffer.getWritePointer(channel);
-        
+        auto* channelData = buffer.getWritePointer(channel);
+
         for (int i = 0; i < numSamples; ++i)
         {
-            int writeIndex = (writeTail + i) % delayBufferSize;
-            int readIndex = (writeIndex - delayInSamples + delayBufferSize) % delayBufferSize;
-            
-            float input = channelData[i];
-            float delayed = delayData[readIndex];
-            
-            delayData[writeIndex] = input;
-            
-            channelData[i] = delayed;
+            channelData[i] = delay.processSample(channelData[i], channel);
         }
     }
-    writeTail = (writeTail + numSamples) % delayBufferSize;
 }
 
 //==============================================================================
-bool InClassapr14AudioProcessor::hasEditor() const
+bool AudioTech2Lecture9AudioProcessor::hasEditor() const
 {
     return true; // (change this to false if you choose to not supply an editor)
 }
 
-juce::AudioProcessorEditor* InClassapr14AudioProcessor::createEditor()
+juce::AudioProcessorEditor* AudioTech2Lecture9AudioProcessor::createEditor()
 {
-    return new InClassapr14AudioProcessorEditor (*this);
+    return new AudioTech2Lecture9AudioProcessorEditor (*this);
 }
 
 //==============================================================================
-void InClassapr14AudioProcessor::getStateInformation (juce::MemoryBlock& destData)
+void AudioTech2Lecture9AudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     // You should use this method to store your parameters in the memory block.
     // You could do that either as raw data, or use the XML or ValueTree classes
     // as intermediaries to make it easy to save and load complex data.
 }
 
-void InClassapr14AudioProcessor::setStateInformation (const void* data, int sizeInBytes)
+void AudioTech2Lecture9AudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
     // You should use this method to restore your parameters from this memory block,
     // whose contents will have been created by the getStateInformation() call.
@@ -269,5 +221,5 @@ void InClassapr14AudioProcessor::setStateInformation (const void* data, int size
 // This creates new instances of the plugin..
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
-    return new InClassapr14AudioProcessor();
+    return new AudioTech2Lecture9AudioProcessor();
 }
