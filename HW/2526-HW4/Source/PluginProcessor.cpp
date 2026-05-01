@@ -19,13 +19,25 @@ _2526HW4AudioProcessor::_2526HW4AudioProcessor()
                       #endif
                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
                      #endif
-                       )
+                       ),
 #endif
+apvts(*this, nullptr, "Parameters", createParams())
 {
 }
 
 _2526HW4AudioProcessor::~_2526HW4AudioProcessor()
 {
+}
+
+
+juce::AudioProcessorValueTreeState::ParameterLayout _2526HW4AudioProcessor::createParams()
+{
+    return
+    {
+        std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"delay", 1}, "Delay Length (sec)", 0.0, 5, 0.25),
+        std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"wet/dry", 2}, "Wet/Dry Mix", 0.0, 1, 0.5),
+        std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"feedback", 3}, "Feedback", 0.0, 0.9, 0.5),
+    };
 }
 
 //==============================================================================
@@ -90,17 +102,23 @@ void _2526HW4AudioProcessor::changeProgramName (int index, const juce::String& n
 {
 }
 
-//==============================================================================
-void _2526HW4AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
-{
-    // call your initializing functions and set variables here!
-}
-
 void _2526HW4AudioProcessor::releaseResources()
 {
     // When playback stops, you can use this as an opportunity to free up any
     // spare memory, etc.
 }
+
+//==============================================================================
+
+void _2526HW4AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
+{
+    DBG("I want to see this message when my thing starts up.");
+    int maxDelay = maxDelaySec * sampleRate;
+    int numChannels = getTotalNumOutputChannels();
+    delay.prepare(sampleRate, maxDelay, numChannels);
+}
+
+
 
 #ifndef JucePlugin_PreferredChannelConfigurations
 bool _2526HW4AudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -138,6 +156,17 @@ void _2526HW4AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
 
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, numSamples);
+
+    auto* delayParam = apvts.getRawParameterValue("delay");
+    auto delayLengthSec = delayParam->load();
+    auto* wetdryParam = apvts.getRawParameterValue("wet/dry");
+    auto wetdryPercentage = wetdryParam->load();
+    auto* feedbackParam = apvts.getRawParameterValue("feedback");
+    auto feedbackAmount = feedbackParam->load();
+
+    delay.setDelayTime(delayLengthSec);
+    delay.setWetMix(wetdryPercentage);
+    delay.setFeedbackAmt(feedbackAmount);
 
     for (int channel = 0; channel < totalNumInputChannels; ++channel)
     {

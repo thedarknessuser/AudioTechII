@@ -48,5 +48,7 @@ private:
     float feedback = 0.2;
     
     juce::SmoothedValue<float> smoothedDelay;
+    juce::SmoothedValue<float> smoothedMix;
+    juce::SmoothedValue<float> smoothedFeedback;
    
 };

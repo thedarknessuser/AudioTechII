@@ -54,6 +54,8 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
+    juce::AudioProcessorValueTreeState apvts;
+
 
 private:
     //==============================================================================
@@ -61,5 +63,7 @@ private:
 
     Delay delay;
     const int maxDelaySec = 5;
+
+    juce::AudioProcessorValueTreeState::ParameterLayout createParams();
     
 };
